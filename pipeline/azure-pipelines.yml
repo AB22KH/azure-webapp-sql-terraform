@@ -1,0 +1,43 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'windows-latest'
+
+stages:
+  - stage: Deploy
+    displayName: "Deploy Infrastructure"
+    jobs:
+      - job: Terraform_Execution
+        displayName: "Run Terraform"
+        steps:
+          - checkout: self
+            displayName: "Checkout Repository"
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init'
+            inputs:
+              provider: "azurerm"
+              command: "init"
+              backendServiceArm: $(TF_VAR_TerraformBackendServiceConnection)
+              backendAzureRmResourceGroupName: $(TF_VAR_TerraformBackendResourceGroup)
+              backendAzureRmStorageAccountName: $(TF_VAR_TerraformBackendStorageAccount)
+              backendAzureRmContainerName: $(TF_VAR_TerraformBackendStorageContainer)
+              backendAzureRmKey: "terraform.tfstate"
+
+          - task: TerraformTaskV4@4
+            displayName: 'Create Terraform Plan'
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-out main.tfplan'
+              environmentServiceNameAzureRM: $(TF_VAR_TerraformEnvironmentServiceConnection)
+
+          - task: TerraformTaskV4@4
+            displayName: 'Apply Terraform Plan'
+            condition: and(succeeded(), eq($(onlyPlan), false))
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: 'main.tfplan'
+              environmentServiceNameAzureRM: $(TF_VAR_TerraformEnvironmentServiceConnection)
